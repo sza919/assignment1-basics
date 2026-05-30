@@ -3,7 +3,16 @@ from typing import BinaryIO
 import regex as re
 from multiprocessing import Pool
 from tqdm import tqdm
+from collections import defaultdict
+import heapq
 
+class ReverseBytes:
+    def __init__(self, x: bytes):
+        self.x = x
+
+    def __lt__(self, other):
+        return self.x > other.x
+    
 def find_chunk_boundaries(
     file: BinaryIO,
     desired_num_chunks: int,
@@ -63,9 +72,10 @@ def pre_tokenize_chunk(
     with open(input_path, "rb") as f:
         f.seek(start)
         chunk_data = f.read(end - start).decode('utf-8', errors='ignore')
+    print('chunk data ready')
     pattern = '|'.join(re.escape(tok) for tok in special_tokens)
     chunk_data_list = re.split(pattern, chunk_data)
-    for stories in chunk_data_list:
+    for stories in tqdm(chunk_data_list, desc = 'Pretokenization'):
         pretok = re.finditer(PAT, stories)
         for match in pretok:
             if match.group(0) not in frequency_table:
@@ -116,15 +126,14 @@ def merge_tokens(vocab: list[bytes], token_frequency_table: dict[tuple[int,...],
     return new_token_frequency_table, pair_freq_table, to_merge
 
 def initialize_pair(token_frequency_table: dict[tuple[int, ...], int]) -> dict[tuple[int, int], int]:
-    pair_freq_table = {}
+    pair_freq_table = defaultdict(int)
+    pair_to_word = defaultdict(set)
     for word, count in token_frequency_table.items():
         for i in range(len(word) - 1):
             pair = (word[i], word[i+1])
-            if pair not in pair_freq_table:
-                pair_freq_table[pair] = count
-            else:
-                pair_freq_table[pair] += count
-    return pair_freq_table
+            pair_freq_table[pair] += count
+            pair_to_word[pair].add(word)
+    return pair_freq_table, pair_to_word
 
 def train_bpe(
     input_path: str | os.PathLike,
@@ -155,7 +164,7 @@ def train_bpe(
     """
     # Pretokenization to get frequency counts.
     with open(input_path, "rb") as f:
-        num_processes = 8
+        num_processes = 14
         boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
 
     with Pool(num_processes) as pool:
@@ -171,7 +180,12 @@ def train_bpe(
             else:
                 frequency_table[token] += count
     token_frequency_table = {tuple(word.encode('utf-8')): count for word, count in frequency_table.items()} # list of int -> int
-    pair_freq_table = initialize_pair(token_frequency_table) # tuple of int, int -> int
+    pair_freq_table, pair_to_word = initialize_pair(token_frequency_table) # tuple of int, int -> int
+    print('initial total words: ', len(token_frequency_table))
+    print('initial total pairs: ', len(pair_freq_table))
+    # pair_heap = []
+    # for pair, freq in pair_freq_table.items():
+    #     heapq.heappush(pair_heap, (-freq, ReverseBytes(vocab[pair[0]]), ReverseBytes(vocab[pair[1]]), pair))
     #print(list(pair_freq_table.items())[:10])
     # Initialize vocab
     merges = []
@@ -182,14 +196,14 @@ def train_bpe(
         
         # avoid call merge_tokens
         new_merge = max(pair_freq_table, key=lambda pair: (pair_freq_table[pair], (vocab[pair[0]], vocab[pair[1]])))
-        new_token_frequency_table = {}
-        for word, count in token_frequency_table.items():
-            
+        #new_merge = pair_heap[0]
+        all_word = pair_to_word[new_merge].copy()
+        for word in all_word:
+            count = token_frequency_table[word]
             w = len(word)
             v = len(vocab)
             need_change = False
             if w == 1:
-                new_token_frequency_table[word] = count
                 continue
             i = 0
             for i in range(w - 1):
@@ -197,7 +211,6 @@ def train_bpe(
                     need_change = True
                     break
             if not need_change:
-                new_token_frequency_table[word] = count
                 continue
             
             if need_change:
@@ -212,17 +225,23 @@ def train_bpe(
                         i += 1
                 if i == w - 1:
                     new_word.append(word[-1])
-                new_token_frequency_table[tuple(new_word)] = count
+                token_frequency_table[tuple(new_word)] = count
+                token_frequency_table[tuple(word)] -= count
+                if token_frequency_table[tuple(word)] == 0:
+                    del token_frequency_table[tuple(word)]
 
                 for i in range(w-1):
                     pair_freq_table[(word[i], word[i+1])] -= count
+                    if word in pair_to_word[(word[i], word[i+1])]:
+                        pair_to_word[(word[i], word[i+1])].remove(word) 
                     if pair_freq_table[(word[i], word[i+1])] == 0:
                         del pair_freq_table[(word[i], word[i+1])]
+                        
                 for i in range(len(new_word) - 1):
                     if (new_word[i], new_word[i+1]) not in pair_freq_table:
                         pair_freq_table[(new_word[i], new_word[i+1])] = 0
                     pair_freq_table[(new_word[i], new_word[i+1])] += count
-        token_frequency_table = new_token_frequency_table
+                    pair_to_word[(new_word[i], new_word[i+1])].add(tuple(new_word))
 
         new_merge = (vocab[new_merge[0]], vocab[new_merge[1]])
         merges.append(new_merge)
@@ -237,8 +256,8 @@ import pickle
 
 if __name__ == "__main__":
     vocab, merges = train_bpe(
-        input_path="data/TinyStoriesV2-GPT4-train.txt",
-        vocab_size=10000,
+        input_path="data/owt_train.txt",
+        vocab_size=32000,
         special_tokens=["<|endoftext|>"],
     )
     os.makedirs("tokenization", exist_ok=True)
