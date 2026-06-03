@@ -6,15 +6,19 @@ from tqdm import tqdm
 class Tokenizer:
     def __init__(self, vocab: dict[int, bytes], merges: list[tuple[bytes, bytes]], special_tokens: list[str] | None = None):
         self.vocab = vocab
+        self.vocab_to_idx = {v: k for k, v in vocab.items()}
         self.merges = merges
         self.vocab_size = len(vocab)
+        
+        self.special_tokens_sorted = []
         if special_tokens is not None:
             for i, token in enumerate(special_tokens):
-                self.vocab[self.vocab_size + i] = token.encode('utf-8')
+                if token not in self.vocab_to_idx:
+                    self.vocab[self.vocab_size + i] = token.encode('utf-8')
+            self.special_tokens_sorted = sorted(special_tokens, key = len, reverse = True)
+
         self.special_tokens = special_tokens if special_tokens is not None else []
-        
         self.pair_to_idx = {pair: i for i, pair in enumerate(merges)}
-        self.vocab_to_idx = {v: k for k, v in vocab.items()}
         self.words_to_token = {}
 
         
@@ -29,7 +33,7 @@ class Tokenizer:
     def encode(self, text: str) -> list[int]:
         # pretokenize the input text
         if len(self.special_tokens) > 0:
-            pattern = '(' + '|'.join(re.escape(tok) for tok in self.special_tokens) + ')'
+            pattern = '(' + '|'.join(re.escape(tok) for tok in self.special_tokens_sorted) + ')'
             text = re.split(pattern, text)
             text = [chunk for chunk in text if chunk != '']
         else:
