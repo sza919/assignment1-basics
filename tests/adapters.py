@@ -13,7 +13,8 @@ from cs336_basics.train_bpe import train_bpe
 from cs336_basics.tokenizer import Tokenizer
 from cs336_basics.transformer import Linear, Embedding, RMSNorm, SwiGLU, RoPE, softmax, ScaledDotProductAttention, \
 MultiHeadAttention, TransformerBlock, TransformerLM
-
+from cs336_basics.training import cross_entropy, AdamW, learning_rate_from_cosine_annealing, gradient_clipping, \
+get_batch, save_checkpoint, load_checkpoint
 def run_linear(
     d_in: int,
     d_out: int,
@@ -209,7 +210,7 @@ def run_multihead_self_attention_with_rope(
                                'k_proj.weight': k_proj_weight,
                                'v_proj.weight': v_proj_weight,
                                'output_proj.weight': o_proj_weight})
-    return Attention_Layer.forward(in_features, rope = rope, token_positions = token_positions)
+    return Attention_Layer.forward(in_features, rope = rope)
     raise NotImplementedError
 
 
@@ -458,6 +459,7 @@ def run_get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
+    return get_batch(dataset, batch_size, context_length, device)
     raise NotImplementedError
 
 
@@ -493,6 +495,7 @@ def run_cross_entropy(
     Returns:
         Float[Tensor, ""]: The average cross-entropy loss across examples.
     """
+    return cross_entropy(inputs, targets)
     raise NotImplementedError
 
 
@@ -505,6 +508,7 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
+    return gradient_clipping(parameters, max_l2_norm)
     raise NotImplementedError
 
 
@@ -512,6 +516,7 @@ def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
+    return AdamW
     raise NotImplementedError
 
 
@@ -540,6 +545,7 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
+    return learning_rate_from_cosine_annealing(it, min_learning_rate, max_learning_rate, warmup_iters, cosine_cycle_iters)
     raise NotImplementedError
 
 
@@ -559,6 +565,7 @@ def run_save_checkpoint(
             we've completed.
         out (str | os.PathLike | BinaryIO | IO[bytes]): Path or file-like object to serialize the model, optimizer, and iteration to.
     """
+    return save_checkpoint(model, optimizer, iteration, out)
     raise NotImplementedError
 
 
@@ -580,6 +587,7 @@ def run_load_checkpoint(
     Returns:
         int: the previously-serialized number of iterations.
     """
+    return load_checkpoint(src, model, optimizer)
     raise NotImplementedError
 
 

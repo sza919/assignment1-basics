@@ -13,8 +13,9 @@ class Tokenizer:
         self.special_tokens_sorted = []
         if special_tokens is not None:
             for i, token in enumerate(special_tokens):
-                if token not in self.vocab_to_idx:
+                if token.encode('utf-8') not in self.vocab_to_idx:
                     self.vocab[self.vocab_size + i] = token.encode('utf-8')
+                    self.vocab_to_idx[token.encode('utf-8')] = self.vocab_size + i
             self.special_tokens_sorted = sorted(special_tokens, key = len, reverse = True)
 
         self.special_tokens = special_tokens if special_tokens is not None else []
@@ -41,7 +42,7 @@ class Tokenizer:
         PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
         tokens = []
         for chunk in text:
-            if chunk in self.special_tokens:
+            if chunk.encode('utf-8') in self.vocab_to_idx:
                 tokens.append(self.vocab_to_idx[chunk.encode('utf-8')])
                 continue
             pretok = re.finditer(PAT, chunk)

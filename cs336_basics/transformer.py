@@ -136,8 +136,7 @@ class MultiHeadAttention(torch.nn.Module):
     def forward(
         self,
         x: Float[Tensor, " ... seq_len d_model"],
-        rope = None,
-        token_positions = None
+        rope = None
     ) -> Float[Tensor, " ... seq_len_q d_model"]:
         Q = einsum(x, self.q_proj.weight, '... seq_len d_model, dq d_model -> ... seq_len dq')
         K = einsum(x, self.k_proj.weight, '... seq_len d_model, dk d_model -> ... seq_len dk')
@@ -147,6 +146,9 @@ class MultiHeadAttention(torch.nn.Module):
         K_heads = rearrange(K, '... seq_len (num_heads d_k) -> ... num_heads seq_len d_k', num_heads=self.num_heads)
         V_heads = rearrange(V, '... seq_len (num_heads d_v) -> ... num_heads seq_len d_v', num_heads=self.num_heads)
         if rope is not None:
+            seq_len = Q_heads.shape[-2]
+            token_positions = torch.arange(seq_len, device=x.device)
+            token_positions = token_positions.expand(*Q_heads.shape[:-2], seq_len)
             Q_heads = rope.forward(Q_heads, token_positions)
             K_heads = rope.forward(K_heads, token_positions)
         seq_len = x.shape[-2]
@@ -170,14 +172,9 @@ class TransformerBlock(torch.nn.Module):
 
     def forward(
         self,
-        x: Float[Tensor, " ... seq_len d_k"],
-        token_positions: Float[Tensor, " ... seq_len"] | None = None
+        x: Float[Tensor, " ... seq_len d_k"]
     ) -> Float[Tensor, " ... seq_len d_k"]:
-        if token_positions is None:
-            seq_len = x.shape[-2]
-            token_positions = torch.arange(seq_len, device=x.device)
-            token_positions = token_positions.expand(*x.shape[:-2], seq_len)
-        y = x + self.attn(self.ln1(x), self.rope, token_positions)
+        y = x + self.attn(self.ln1(x), self.rope)
         output = y + self.ffn(self.ln2(y))
         return output
     
@@ -224,19 +221,13 @@ class TransformerLM(torch.nn.Module):
 
     def forward(
         self,
-        x: Int[Tensor, " ... seq_len"],
-        token_positions: Float[Tensor, " ... seq_len"] | None = None
+        x: Int[Tensor, " ... seq_len"]
     ) -> Float[Tensor, " ... seq_len d_k"]:
-        seq_len = x.shape[-1]
 
-        if token_positions is None:
-            token_positions = torch.arange(seq_len, device=x.device)
-            token_positions = token_positions.expand(*x.shape[:-1], seq_len)
-        # (..., seq_len) -> (..., seq_len, d_model)
         h = self.token_embeddings(x)
 
         for layer in self.layers:
-            h = layer(h, token_positions=token_positions)
+            h = layer(h)
 
         h = self.ln_final(h)
         h = self.lm_head(h)

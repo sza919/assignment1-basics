@@ -1,0 +1,38 @@
+{
+  "os": "macOS-15.7.4-arm64-arm-64bit-Mach-O",
+  "python": "CPython 3.13.3",
+  "startedAt": "2026-06-23T21:40:25.589499Z",
+  "args": [
+    "--use_wandb"
+  ],
+  "program": "-m cs336_basics.training_together",
+  "git": {
+    "remote": "https://github.com/sza919/assignment1-basics.git",
+    "commit": "7b2f5c09b20a62345afc9b33d8bdeac0b4183950"
+  },
+  "email": "ziangsong2000@gmail.com",
+  "root": "/Users/ziangs/Desktop/CS336/assignment1-basics",
+  "host": "Ziangs-MacBook-Pro-3.local",
+  "executable": "/Users/ziangs/Desktop/CS336/assignment1-basics/.venv/bin/python3",
+  "cpu_count": 10,
+  "cpu_count_logical": 10,
+  "disk": {
+    "/": {
+      "total": "994662584320",
+      "used": "893753016320"
+    }
+  },
+  "memory": {
+    "total": "17179869184"
+  },
+  "apple": {
+    "name": "Apple M1 Pro",
+    "ecpuCores": 2,
+    "pcpuCores": 8,
+    "gpuCores": 16,
+    "memoryGb": 16,
+    "swapTotalBytes": "2147483648",
+    "ramTotalBytes": "17179869184"
+  },
+  "writerId": "x59mj560lje7929cacs9mcayi5wjna8e"
+}
